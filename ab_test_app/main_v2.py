@@ -16,20 +16,26 @@ def init_db():
             user_id TEXT,
             test_name TEXT,
             variant TEXT,
-            timestamp TEXT
+            timestamp TEXT,
+            PRIMARY KEY (user_id, test_name)
         )
         """)
 init_db()
 
 
-def get_hash_bucket(user_id: str, test_name: str, max_bucket: int = 100) -> int:
-    key = f"{user_id}:{test_name}"
-    h = hashlib.sha256(key.encode()).hexdigest()
-    return int(h, 16) % max_bucket
+def split_userid(abtest_id, user_id, size_of_test, num_of_variants=2):
+   id = str(user_id) + str(abtest_id)
+   h = hashlib.md5(id.encode())
+   bucket = int(h.hexdigest(), 16)
+   print(size_of_test, bucket % 100, bucket % num_of_variants)
+   if (bucket % 100) < size_of_test:
+       return bucket % num_of_variants
+   else:
+       return None
 
 
-@app.post("/login")
-async def login(request: Request):
+@app.post("/bucket-user")
+async def bucket_user(request: Request):
     data = await request.json()
     user_id = data.get("user_id")
 
@@ -42,17 +48,17 @@ async def login(request: Request):
         if not test["enabled"]:
             continue
 
-        bucket = get_hash_bucket(user_id, test["test_name"])
-        if bucket >= test["percentage"]:
-            continue  # 제외됨
+        bucket = split_userid(test["test_name"], user_id, test["percentage"])
 
-        # A/B 배정
-        variant_bucket = bucket % 100
-        if variant_bucket < test["variant_split"]["A"]:
+        # 사용자가 AB test에 포함되지 않았다면 다음 AB test로 이동
+        if bucket is None:
+            continue
+
+        if bucket == 0:
             variant = "A"
         else:
             variant = "B"
-
+ 
         assigned_tests.append({
             "test_name": test["test_name"],
             "variant": variant
@@ -64,7 +70,7 @@ async def login(request: Request):
             cursor.execute("""
                 INSERT INTO ab_test_log (user_id, test_name, variant, timestamp)
                 VALUES (?, ?, ?, ?)
-            """, (user_id, config["test_name"], variant, datetime.utcnow().isoformat()))
+            """, (user_id, test["test_name"], variant, datetime.utcnow().isoformat()))
             conn.commit()
 
     return {"user_id": user_id, "ab_test": assigned_tests }

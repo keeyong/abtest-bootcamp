@@ -16,41 +16,37 @@ def init_db():
             user_id TEXT,
             test_name TEXT,
             variant TEXT,
-            timestamp TEXT
+            timestamp TEXT,
+            PRIMARY KEY (user_id, test_name)
         )
         """)
 init_db()
 
 
-def get_hash_bucket(user_id: str, max_bucket: int = 100) -> int:
-    h = hashlib.sha256(user_id.encode()).hexdigest()
-    return int(h, 16) % max_bucket
+def split_userid(id, num_of_variants=2):
+     h = hashlib.md5(str(id).encode())
+     return int(h.hexdigest(), 16) % num_of_variants 
 
 
-@app.post("/login")
-async def login(request: Request):
+@app.post("/bucket-user")
+async def bucket_user(request: Request):
     data = await request.json()
     user_id = data.get("user_id")
 
+    # user_id가 존재하지 않는다면 에러 리턴
     if not user_id:
         return {"error": "Missing user_id"}
 
     config = AB_TEST_CONFIG
+    # 해당 AB 테스트가 활성화되지 않았다면 소속된 AB 테트스 정도 없이 리턴
     if not config["enabled"]:
         return {"user_id": user_id, "ab_test": None}
 
-    bucket = get_hash_bucket(user_id)
-    if bucket >= config["percentage"]:
-        return {"user_id": user_id, "ab_test": "excluded"}
+    # bucket 정보를 바탕으로 이를 db에 저장
+    variant = 'A' if split_userid(user_id) == 0 else 'B' 
 
-    # Assign variant
-    variant_bucket = bucket % 100
-    if variant_bucket < config["variant_split"]["A"]:
-        variant = "A"
-    else:
-        variant = "B"
-
-    # Log to DB
+    # DB에 로그하기
+    # 사실은 로그 파일이나 NoSQL 등에 저장하는 것이 더 선호됨
     with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
