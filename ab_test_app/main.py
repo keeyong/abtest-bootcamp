@@ -50,7 +50,7 @@ async def login(request: Request):
         variant = "B"
 
     # Log to DB
-    with sqlite3.connect("ab_test.db") as conn:
+    with sqlite3.connect("db/ab_test.db") as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO ab_test_log (user_id, test_name, variant, timestamp)
