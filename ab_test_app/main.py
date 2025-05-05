@@ -5,10 +5,11 @@ from datetime import datetime
 from ab_test_config import AB_TEST_CONFIG
 
 app = FastAPI()
+db_path = "db/ab_test.db"
 
 # DB 초기화
 def init_db():
-    with sqlite3.connect("ab_test.db") as conn:
+    with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS ab_test_log (
@@ -50,7 +51,7 @@ async def login(request: Request):
         variant = "B"
 
     # Log to DB
-    with sqlite3.connect("db/ab_test.db") as conn:
+    with sqlite3.connect("db_path") as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO ab_test_log (user_id, test_name, variant, timestamp)
@@ -59,4 +60,3 @@ async def login(request: Request):
         conn.commit()
 
     return {"user_id": user_id, "ab_test": {"test_name": config["test_name"], "variant": variant}}
-
