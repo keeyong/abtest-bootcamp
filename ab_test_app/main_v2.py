@@ -59,7 +59,7 @@ async def login(request: Request):
         })
 
         # 저장
-        with sqlite3.connect("db_path") as conn:
+        with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO ab_test_log (user_id, test_name, variant, timestamp)
